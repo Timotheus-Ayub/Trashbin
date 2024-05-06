@@ -1,0 +1,312 @@
+// multi-threading avg,min,max of command line data
+
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#define MAX_SIZE 100
+
+int data[MAX_SIZE];
+int data_size;
+
+void* compute_avg(void* arg) {
+    int sum = 0;
+    int size = *((int*)arg);
+
+    for (int i = 0; i < size; i++) {
+        sum += data[i];
+    }
+
+    int average = sum / size;
+
+    return (void*)average;
+}
+
+void* compute_max(void* arg) {
+    int max_val = data[0];
+    int size = *((int*)arg);
+
+    for (int i = 1; i < size; i++) {
+        if (data[i] > max_val)
+            max_val = data[i];
+    }
+
+    return (void*)max_val;
+}
+
+void* compute_min(void* arg) {
+    int min_val = data[0];
+    int size = *((int*)arg);
+
+    for (int i = 1; i < size; i++) {
+        if (data[i] < min_val)
+            min_val = data[i];
+    }
+
+    return (void*)min_val;
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        printf("Usage: %s <data1> <data2> ... <dataN>\n", argv[0]);
+        return 1;
+    }
+
+    data_size = argc - 1;
+
+    if (data_size > MAX_SIZE) {
+        printf("Exceeded maximum data size. Maximum size is %d\n", MAX_SIZE);
+        return 1;
+    }
+
+    for (int i = 0; i < data_size; i++) {
+        data[i] = atoi(argv[i + 1]);
+    }
+
+    pthread_t threads[3];
+    int args[3] = {data_size, data_size, data_size}; // Passing size of data to threads
+
+    pthread_create(&threads[0], NULL, compute_avg, (void*)&args[0]);
+    pthread_create(&threads[1], NULL, compute_max, (void*)&args[1]);
+    pthread_create(&threads[2], NULL, compute_min, (void*)&args[2]);
+
+    int avg, max_val, min_val;
+
+    pthread_join(threads[0], (void**)&avg);
+    pthread_join(threads[1], (void**)&max_val);
+    pthread_join(threads[2], (void**)&min_val);
+
+    printf("Average: %d\n", avg);
+    printf("Maximum: %d\n", max_val);
+    printf("Minimum: %d\n", min_val);
+
+    return 0;
+}
+
+
+// Data parallelism to find sum of array
+
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include<time.h>
+
+#define MAX_SIZE 100
+#define n 5
+#define size 15
+
+int data[25];
+
+void ini(){
+
+	srand(time(NULL));
+	
+	for (int i=0 ; i<size ; i++ ){
+	
+	data[i] = rand() % 10 ;
+	
+	}
+	
+	
+}
+
+void * sum( void * arg){
+	
+	int id = *((int *)arg);
+	
+	//printf("%d\n",id);
+		
+	int s = id * (size/n);
+	int e = s + (size/n);
+	
+	int sum=0;
+	
+	for(int i=s;i<e;i++){
+	
+	sum += data[i];
+	
+	}
+	//printf("%d\n",sum);
+	return (void *)sum;
+}
+
+
+int main() {
+    
+    static int s=0;
+    int p;
+    
+    pthread_t t[n];
+    
+    ini();
+    
+    int Thread_ID[n];
+    
+    for(int i=0; i<n ;i++){
+    
+    Thread_ID[i]=i;
+    
+    pthread_create(&t[i],NULL,sum,(void *)&Thread_ID[i]);
+    
+    }
+    
+    for(int i=0; i<n ;i++){
+    
+    pthread_join(t[i],(void**)&p);
+    
+    s += p;
+    
+    
+    }
+    
+    printf("Data = ");
+    
+    for(int i=0; i<size ;i++){
+    
+    printf("%d,",data[i]);
+    
+    }
+    
+    printf("\nSum of Array = %d\n", s);
+    
+    
+    
+    return 0;
+}
+
+// Bounded-Buffer
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
+#define BUFFER_SIZE 5
+sem_t mutex, empty, full;
+int buffer[BUFFER_SIZE];
+int in = 0, out = 0;
+void *producer(void *arg) {
+int item;
+while (1) {
+item = rand() % 100; // Generate a random item to produce
+sem_wait(&empty);
+sem_wait(&mutex);
+buffer[in] = item;
+printf("Produced: %d\n", item);
+in = (in + 1) % BUFFER_SIZE;
+sem_post(&mutex);
+sem_post(&full);
+sleep(rand() % 3); // Simulate some processing time
+}
+}
+void *consumer(void *arg) {
+int item;
+while (1) {
+sem_wait(&full);
+sem_wait(&mutex);
+item = buffer[out];
+printf("Consumed: %d\n", item);
+out = (out + 1) % BUFFER_SIZE;
+sem_post(&mutex);
+sem_post(&empty);
+sleep(rand() % 3); // Simulate some processing time
+}
+}
+int main() {
+pthread_t producer_thread, consumer_thread;
+// Initialize semaphores
+sem_init(&mutex, 0, 1);
+sem_init(&empty, 0, BUFFER_SIZE);
+sem_init(&full, 0, 0);
+// Create producer and consumer threads
+pthread_create(&producer_thread, NULL, producer, NULL);
+pthread_create(&consumer_thread, NULL, consumer, NULL);
+// Join threads
+pthread_join(producer_thread, NULL);
+pthread_join(consumer_thread, NULL);
+// Destroy semaphores
+sem_destroy(&mutex);
+sem_destroy(&empty);
+sem_destroy(&full);
+return 0;
+}
+
+
+// Reader-Writter Problem
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <semaphore.h>
+#include <pthread.h>
+#define NUM_READERS 5
+#define NUM_WRITERS 2
+#define STRING_LENGTH 60
+pthread_t readers[NUM_READERS], writers[NUM_WRITERS];
+sem_t mutex, rw_mutex;
+int readers_count = 0;
+FILE *file;
+char generateRandomChar() {
+return (char)('a' + rand() % 26); // Generating a random lowercase character
+}
+void *reader(void *arg) {
+while (1) {
+sem_wait(&mutex);
+readers_count++;
+if (readers_count == 1) {
+sem_wait(&rw_mutex);
+}
+sem_post(&mutex);
+// Reading from file
+fseek(file, 0, SEEK_SET);
+char buffer[256];
+while (fgets(buffer, sizeof(buffer), file) != NULL) {
+fprintf(stdout,"Reader %ld: %s", (long)arg, buffer);
+}
+sem_wait(&mutex);
+readers_count--;
+if (readers_count == 0) {
+sem_post(&rw_mutex);
+}
+sem_post(&mutex);
+// Perform other tasks
+usleep(1000);
+}
+}
+void *writer(void *arg) {
+while (1) {
+sem_wait(&rw_mutex);
+// generate random string to be written to file
+srand(time(NULL)); // Seed for random number generator
+char randomString[STRING_LENGTH + 1]; // +1 for null terminator
+for (int i = 0; i < STRING_LENGTH; i++) {
+randomString[i] = generateRandomChar();
+}
+randomString[STRING_LENGTH] = '\0'; // Null terminate the string
+// Writing to file
+fseek(file, 0, SEEK_END);
+fprintf(file, "%s\n",randomString); // writer to file on drive
+fprintf(stdout, "Writer %ld: %s\n", (long)arg, randomString); // display
+fflush(file);
+sem_post(&rw_mutex);
+// Perform other tasks
+usleep(1000);
+}
+}
+
+int main() {
+file = fopen("shared_file.txt", "a+");
+if (file == NULL) {
+perror("Error opening file");
+exit(EXIT_FAILURE);
+}
+sem_init(&mutex, 0, 1); sem_init(&rw_mutex, 0, 1);
+int i;
+for (i = 0; i < NUM_WRITERS; i++) pthread_create(&writers[i], NULL, writer, (void *)(long)i);
+for (i = 0; i < NUM_READERS; i++) pthread_create(&readers[i], NULL, reader, (void *)(long)i);
+for (i = 0; i < NUM_READERS; i++) pthread_join(readers[i], NULL);
+for (i = 0; i < NUM_WRITERS; i++) pthread_join(writers[i], NULL);
+fprintf(stdout, "reader pthread join completed\n");
+sem_destroy(&mutex); sem_destroy(&rw_mutex);
+fclose(file);
+return 0;
+}
