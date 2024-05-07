@@ -1,0 +1,235 @@
+
+// SIGNALS
+
+
+
+// Alarms
+
+#include<stdlib.h>
+#include<signal.h>
+#include<stdio.h>
+#include<unistd.h>
+
+void tg(int signum){
+	
+	printf("Terminating Gracefully!\n");
+	exit(1);
+	
+}
+
+int main(){
+	
+	signal(SIGALRM,tg);
+	
+	alarm(5);
+	
+	while(1){
+	
+	printf("Sleeping for 1 sec\n");
+	
+	sleep(1);
+	
+	}
+	
+	return 0;
+}
+
+// SIGINT
+
+#include<stdio.h>
+#include<wait.h>
+#include<signal.h>
+#include<unistd.h>
+
+int state = 0;
+
+void sig_handler(int num){
+	
+	if(state == 0){
+	
+	printf("Process Paused!\n");
+	state = 1;
+	
+	}
+	
+	if(state == 1){
+	
+	printf("Process Resumed!\n");
+	state = 0;
+	
+	}
+	
+	signal(SIGINT , SIG_DFL);
+}
+
+
+int main(){
+	
+	signal(SIGINT , sig_handler);
+	
+	while(1){
+	
+	sleep(1);
+	
+	printf("Process is Running!\n");
+	
+	}
+	
+	
+	return 0;
+}
+
+
+// SIGUSR1 and SIGUSR2
+
+// IGNORE
+
+#include<stdio.h>
+#include<signal.h>
+
+void sig_han1(int signum){
+	
+	
+	printf("User1 Signal Recieved!\n");
+	
+	}
+
+void sig_han2(int signum){
+	
+	
+	printf("User2 Signal Recieved!\n");
+	
+	}
+
+int main(){
+	
+	signal(SIGUSR1,sig_han1);
+	signal(SIGUSR2,sig_han2);
+	
+	printf("Process ID = %d\n",getpid());
+	
+	while(1){
+	
+	//  Running
+	
+	}
+	
+	return 0;
+}
+
+// Sigaction
+
+struc sigaction sa;
+sa.sa_handler = function_name;
+sigemptyset(&sa.sa_mask);
+sa.sa_flags = 0;
+
+if(sigaction(SIGINT,&sa,NULL)==-1){
+perror("sigaction");
+return EXIT_FAILURE;
+
+}
+
+-------------------------------------------------------------------------------------------------------------------------------
+
+// prev exam
+
+// 1. Race
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h>
+
+#define NUM_RACERS 5
+
+void *race(void *arg) {
+    int id = *((int*)arg);
+    // Simulate some work
+    sleep(rand() % 5 + 1);
+    printf("Racer %d finished.\n", id);
+    return NULL;
+}
+
+int main() {
+    pthread_t racers[NUM_RACERS];
+    int ids[NUM_RACERS];
+
+    printf("Get ready... Set... Go!\n");
+
+    // Start all racers
+    for (int i = 0; i < NUM_RACERS; ++i) {
+        ids[i] = i + 1;
+        pthread_create(&racers[i], NULL, race, &ids[i]);
+    }
+
+    // Wait for all racers to finish
+    for (int i = 0; i < NUM_RACERS; ++i) {
+        pthread_join(racers[i], NULL);
+    }
+
+    printf("Race finished!\n");
+
+    return 0;
+}
+
+
+// 2. Seat Allocation
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <semaphore.h>
+
+#define THREAD_NUM 5
+
+pthread_mutex_t mutex;
+int seats = 3;
+
+
+struct UserData
+{
+    char *name;
+    int ID;
+}userData[THREAD_NUM];
+
+
+void* register_user(void* args){
+    int id = *((int *)args);
+
+    pthread_mutex_lock(&mutex);
+    userData[id].ID = id;
+    userData[id].name = "Any name";
+    if(seats <= 0){
+        printf("User ID: %d\n",userData[id].ID);
+        printf("Sorry, no seats available\n");
+        pthread_mutex_unlock(&mutex);
+    }else{
+        printf("User ID: %d\n",userData[id].ID);
+        printf("Name: %s\n",userData[id].name);
+        seats--;
+        printf("Registration completed\n\nSeats available: %d\n\n",seats);
+
+        pthread_mutex_unlock(&mutex);
+        usleep(1000);
+    }
+}
+
+int main(){
+     pthread_t customers[THREAD_NUM];
+     pthread_mutex_init(&mutex,0);
+
+    int threadID[THREAD_NUM];
+    for(int i=0;i<THREAD_NUM;i++){
+        threadID[i] = i;
+        pthread_create(&customers[i],NULL,register_user,(void *)&threadID[i]);
+    }
+
+    for(int i = 0;i<THREAD_NUM;i++){
+        pthread_join(customers[i],NULL);
+    }
+
+    return 0;
+}
+
